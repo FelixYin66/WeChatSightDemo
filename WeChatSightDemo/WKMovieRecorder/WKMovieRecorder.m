@@ -76,7 +76,6 @@ WKMovieWriterDelegate
 @property (nonatomic, strong) AVCaptureVideoDataOutput *videoDataOutput;
 
 
-
 //Utilities
 @property (nonatomic, strong) NSMutableArray *frames;//存储录制帧
 @property (nonatomic, assign) CaptureAVSetupResult result;
@@ -96,7 +95,6 @@ WKMovieWriterDelegate
     dispatch_once(&onceToken, ^{
         recorder = [[WKMovieRecorder alloc] initWithMaxDuration:CGFLOAT_MAX];
     });
-    
     return recorder;
 }
 
@@ -160,9 +158,6 @@ WKMovieWriterDelegate
         self.isPaused = NO;
         _currentFile = 0;
         _discont = NO;
-        
-        
-        
         
         self.session = [[AVCaptureSession alloc] init];
         

@@ -36,18 +36,32 @@ typedef void(^AuthorizationResult)(BOOL success);
 @interface WKMovieRecorder : NSObject
 
 + (WKMovieRecorder*) sharedRecorder;
+
+//初始化
 - (void) setup;
+
 - (void) shutdown;
+
 - (AVCaptureVideoPreviewLayer*) getPreviewLayer;
+
 - (void)prepareCaptureWithBlock:(void (^)())block;
+
 - (void) startCapture;
+
 - (void) pauseCapture;
+
 - (void) stopCapture;
+
 - (void) cancleCaputre;
+
 - (void) resumeCapture;
+
 - (void) startSession;//启动session
+
 - (BOOL) setScaleFactor:(CGFloat)factor;//设置缩放
+
 - (void) changeCamera;
+
 - (void) finishCapture;
 
 //回调
@@ -72,4 +86,5 @@ typedef void(^AuthorizationResult)(BOOL success);
 @property (nonatomic, strong, readonly) NSURL *recordURL;//临时视频地址
 
 - (BOOL)isCapturing;
+
 @end
