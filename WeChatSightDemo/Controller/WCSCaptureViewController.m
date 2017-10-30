@@ -87,24 +87,22 @@ static void * DurationContext = &DurationContext;
     CGFloat Height = width / 4 * 3;
     _recorder.cropSize = CGSizeMake(width, Height);
     __weak typeof(self)weakSelf = self;
-    
-    [_recorder setAuthorizationResultBlock:^(BOOL success){
+    [self.recorder setAuthorizationResultBlock:^(BOOL success){
         if (!success) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                
                 NSLog(@"这里就省略没有权限的处理了");
             });
         }
     }];
     
-    [_recorder prepareCaptureWithBlock:^{
+    [self.recorder prepareCaptureWithBlock:^{
         
         //1.video preview
-        AVCaptureVideoPreviewLayer* preview = [_recorder getPreviewLayer];
+        AVCaptureVideoPreviewLayer* preview = [weakSelf.recorder getPreviewLayer];
         preview.backgroundColor = [UIColor blackColor].CGColor;
         preview.videoGravity = AVLayerVideoGravityResizeAspectFill;
         [preview removeFromSuperlayer];
-        preview.frame = CGRectInset(self.preview.bounds, 0, (CGRectGetHeight(weakSelf.preview.bounds) - kScreenWidth / 4 * 3) / 2);
+        preview.frame = CGRectInset(weakSelf.preview.bounds, 0, (CGRectGetHeight(weakSelf.preview.bounds) - kScreenWidth / 4 * 3) / 2);
         
         [weakSelf.preview.layer addSublayer:preview];
         
@@ -115,11 +113,11 @@ static void * DurationContext = &DurationContext;
         [weakSelf.preview addGestureRecognizer:tapGR];
     }];
     
-    [_recorder setFinishBlock:^(NSDictionary *info, WKRecorderFinishedReason reason){
+    [self.recorder setFinishBlock:^(NSDictionary *info, WKRecorderFinishedReason reason){
         switch (reason) {
             case WKRecorderFinishedReasonNormal:
-            case WKRecorderFinishedReasonBeyondMaxDuration:{//正常结束
-
+            case WKRecorderFinishedReasonBeyondMaxDuration:{
+                //正常结束
                 UIStoryboard *sb = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
                 WCSPreviewViewController *previewVC = [sb instantiateViewControllerWithIdentifier:@"WCSPreviewViewController"];
                 previewVC.movieInfo = info;
@@ -130,8 +128,6 @@ static void * DurationContext = &DurationContext;
                 
             }
             case WKRecorderFinishedReasonCancle:{//重置
-                
-                
                 break;
             }
                 
@@ -141,54 +137,53 @@ static void * DurationContext = &DurationContext;
         NSLog(@"随便你要干什么");
     }];
     
-    [_recorder setFocusAreaDidChangedBlock:^{//焦点改变
+    [self.recorder setFocusAreaDidChangedBlock:^{//焦点改变
         
     }];
     
-    [_longPressButton setStateChangeBlock:^(WKState state){
-        __strong typeof(weakSelf) strongSelf = weakSelf;
+    [self.longPressButton setStateChangeBlock:^(WKState state){
         switch (state) {
             case WKStateBegin: {
                 
-                [strongSelf.recorder startCapture];
+                [weakSelf.recorder startCapture];
                 
-                [strongSelf.statusLabel.superview bringSubviewToFront:strongSelf.statusLabel];
+                [weakSelf.statusLabel.superview bringSubviewToFront:weakSelf.statusLabel];
                 
-                [strongSelf showStatusLabelWithBackgroundColor:[UIColor clearColor] textColor:[UIColor greenColor] state:YES];
+                [weakSelf showStatusLabelWithBackgroundColor:[UIColor clearColor] textColor:[UIColor greenColor] state:YES];
                 
-                if (!strongSelf.processLayer) {
-                    strongSelf.processLayer = [CALayer layer];
-                    strongSelf.processLayer.bounds = CGRectMake(0, 0, CGRectGetWidth(strongSelf.preview.bounds), 5);
-                    strongSelf.processLayer.position = CGPointMake(CGRectGetMidX(strongSelf.preview.bounds), CGRectGetHeight(strongSelf.preview.bounds) - 2.5);
-                    strongSelf.processLayer.backgroundColor = [UIColor greenColor].CGColor;
+                if (!weakSelf.processLayer) {
+                    weakSelf.processLayer = [CALayer layer];
+                    weakSelf.processLayer.bounds = CGRectMake(0, 0, CGRectGetWidth(weakSelf.preview.bounds), 5);
+                    weakSelf.processLayer.position = CGPointMake(CGRectGetMidX(weakSelf.preview.bounds), CGRectGetHeight(weakSelf.preview.bounds) - 2.5);
+                    weakSelf.processLayer.backgroundColor = [UIColor greenColor].CGColor;
                 }
-                [strongSelf addAnimation];
+                [weakSelf addAnimation];
                 
-                [strongSelf.preview.layer addSublayer:strongSelf.processLayer];
+                [weakSelf.preview.layer addSublayer:weakSelf.processLayer];
                 
                 
-                [strongSelf.longPressButton disappearAnimation];
+                [weakSelf.longPressButton disappearAnimation];
                 
                 break;
             }
             case WKStateIn: {
-                [strongSelf showStatusLabelWithBackgroundColor:[UIColor clearColor] textColor:[UIColor greenColor] state:YES];
+                [weakSelf showStatusLabelWithBackgroundColor:[UIColor clearColor] textColor:[UIColor greenColor] state:YES];
 
                 break;
             }
             case WKStateOut: {
 
-                [strongSelf showStatusLabelWithBackgroundColor:[UIColor redColor] textColor:[UIColor whiteColor] state:NO];
+                [weakSelf showStatusLabelWithBackgroundColor:[UIColor redColor] textColor:[UIColor whiteColor] state:NO];
                 break;
             }
             case WKStateCancle: {
-                [strongSelf.recorder cancleCaputre];
-                [strongSelf endRecord];
+                [weakSelf.recorder cancleCaputre];
+                [weakSelf endRecord];
                 break;
             }
             case WKStateFinish: {
-                [strongSelf.recorder stopCapture];
-                [strongSelf endRecord];
+                [weakSelf.recorder stopCapture];
+                [weakSelf endRecord];
                 break;
             }
         }

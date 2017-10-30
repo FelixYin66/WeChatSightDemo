@@ -65,7 +65,7 @@ WKMovieWriterDelegate
 @property (nonatomic, strong) dispatch_queue_t sessionQueue;
 @property (nonatomic, strong) dispatch_queue_t videoDataOutputQueue;
 @property (nonatomic, strong) AVCaptureSession *session;
-@property (nonatomic, strong) AVCaptureDevice *captureDevice;
+@property (nonatomic, strong) AVCaptureDevice *captureDevice;  //摄像设备
 @property (nonatomic, strong) AVCaptureDeviceInput *videoDeviceInput;
 @property (nonatomic, strong) AVCaptureStillImageOutput *stillImageOutput;
 @property (nonatomic, strong) AVCaptureConnection *videoConnection;
@@ -82,8 +82,8 @@ WKMovieWriterDelegate
 @property (atomic, readwrite) BOOL isCapturing;
 @property (atomic, readwrite) BOOL isPaused;
 @property (nonatomic, strong) NSTimer *durationTimer;
-
 @property (nonatomic, assign) WKRecorderFinishedReason finishReason;
+
 @end
 
 @implementation WKMovieRecorder
@@ -121,32 +121,7 @@ WKMovieWriterDelegate
     return self;
 }
 
-- (void)dealloc
-{
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:self.session];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVCaptureSessionWasInterruptedNotification object:self.session];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVCaptureSessionInterruptionEndedNotification object:self.session];
-    if (_captureDevice.position == AVCaptureDevicePositionBack) {
-        
-        [_captureDevice removeObserver:self forKeyPath:@"adjustingFocus"];
-    }
-    
-    [_session beginConfiguration];
-    [self.session removeInput:self.videoDeviceInput];
-    [_session commitConfiguration];
-    
-    
-    //    [_session removeInput:self.videoDeviceInput];
-    
-    
-    
-    if ([_session isRunning]){
-        [_session stopRunning];
-        _session = nil;
-    }
-    
-    NSLog(@"%s", __FUNCTION__);
-}
+
 
 - (void)setup
 {
@@ -167,12 +142,6 @@ WKMovieWriterDelegate
         dispatch_group_t group = dispatch_group_create();
         [self checkAuthorization:group];
         
-        dispatch_async(dispatch_get_main_queue(), ^{
-            dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-                NSLog(@"notity--------");
-            });
-        });
-        
         dispatch_group_notify(group, self.sessionQueue, ^{
             if (self.result != CaptureAVSetupResultSuccess) {
                 
@@ -182,21 +151,23 @@ WKMovieWriterDelegate
                 return;
             }
             
+            //创建摄像设备   AVCaptureDevicePositionBack 后置摄像头  AVCaptureDevicePositionFront 前置摄像头
             AVCaptureDevice *captureDevice = [[self class] deviceWithMediaType:AVMediaTypeVideo preferringPosition:AVCaptureDevicePositionBack];
-            
             _captureDevice = captureDevice;
             
+            //创建摄像数据输出流
             NSError *error = nil;
             _videoDeviceInput = [[AVCaptureDeviceInput alloc] initWithDevice:captureDevice error:&error];
             
             if (!_videoDeviceInput) {
-                NSLog(@"未找到设备");
+                //缺少失败处理
+                NSLog(@"摄像设备输出流 对象创建失败");
             }
             
-            
-            //配置会话
+            //开始配置拍摄会话
             [self.session beginConfiguration];
             
+            // 设置 帧频
             int frameRate;
             if ( [NSProcessInfo processInfo].processorCount == 1 )
             {
@@ -205,6 +176,7 @@ WKMovieWriterDelegate
                 }
                 frameRate = 10;
             }else{
+               //设置 视频输出质量
                 if ([self.session canSetSessionPreset:AVCaptureSessionPreset640x480]) {
                     [self.session setSessionPreset:AVCaptureSessionPreset640x480];
                 }
@@ -212,10 +184,11 @@ WKMovieWriterDelegate
             }
             
             CMTime frameDuration = CMTimeMake( 1, frameRate );
-            
             if ( [_captureDevice lockForConfiguration:&error] ) {
+                //设置帧率
                 _captureDevice.activeVideoMaxFrameDuration = frameDuration;
                 _captureDevice.activeVideoMinFrameDuration = frameDuration;
+                //释放 设备锁
                 [_captureDevice unlockForConfiguration];
             }
             else {
@@ -230,6 +203,7 @@ WKMovieWriterDelegate
                 self.videoDeviceInput = _videoDeviceInput;
                 [self.session removeOutput:_videoDataOutput];
                 
+                //配置视频数据输出流
                 AVCaptureVideoDataOutput *videoOutput = [[AVCaptureVideoDataOutput alloc] init];
                 _videoDataOutput = videoOutput;
                 videoOutput.videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey : @(kCVPixelFormatType_32BGRA) };
@@ -255,7 +229,7 @@ WKMovieWriterDelegate
                     if ( statusBarOrientation != UIInterfaceOrientationUnknown ) {
                         initialVideoOrientation = (AVCaptureVideoOrientation)statusBarOrientation;
                     }
-                    
+                    //设置视频录制方向
                     _videoConnection.videoOrientation = initialVideoOrientation;
                 }
                 
@@ -282,7 +256,7 @@ WKMovieWriterDelegate
             }
             
             
-            
+            //设置 音频 输出流
             AVCaptureAudioDataOutput *audioOut = [[AVCaptureAudioDataOutput alloc] init];
             // Put audio on its own queue to ensure that our video processing doesn't cause us to drop audio
             dispatch_queue_t audioCaptureQueue = dispatch_queue_create( "wukong.movieRecorder.audio", DISPATCH_QUEUE_SERIAL );
@@ -294,6 +268,7 @@ WKMovieWriterDelegate
             }
             _audioConnection = [audioOut connectionWithMediaType:AVMediaTypeAudio];
             
+            //拍摄配置完成
             [self.session commitConfiguration];
             
             if (self.prepareBlock) {
@@ -301,19 +276,17 @@ WKMovieWriterDelegate
                     [_session startRunning];
                 }
                 
+                //配置完成回调
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    
                     self.prepareBlock();
                 });
             }
         });
         
+        //设置预览
         _preview = [AVCaptureVideoPreviewLayer layerWithSession:_session];
         _preview.videoGravity = AVLayerVideoGravityResizeAspectFill;
     }
-    
-    
-    
     
     [self addObservers];
 }
@@ -423,6 +396,7 @@ WKMovieWriterDelegate
 - (void)finishCapture
 {
     [_session stopRunning];
+    [_frames removeAllObjects];
 }
 
 /**
@@ -491,7 +465,6 @@ WKMovieWriterDelegate
             NSLog(@"Resuming capture");
             self.isPaused = NO;
             dispatch_async(dispatch_get_main_queue(), ^{
-                
                 _durationTimer = [NSTimer scheduledTimerWithTimeInterval:0.1f target:self selector:@selector(computeDuration:) userInfo:nil repeats:YES];
             });
         }
@@ -519,6 +492,7 @@ WKMovieWriterDelegate
 
 
 #pragma mark 时常限制
+
 - (void)computeDuration:(NSTimer *)timer
 {
     if (self.isCapturing) {
@@ -534,6 +508,9 @@ WKMovieWriterDelegate
     }
 }
 
+
+
+
 - (void)startSession
 {
     dispatch_async(self.sessionQueue, ^{
@@ -543,6 +520,8 @@ WKMovieWriterDelegate
         }
     });
 }
+
+
 
 
 - (CMSampleBufferRef) adjustTime:(CMSampleBufferRef) sample by:(CMTime) offset
@@ -561,6 +540,8 @@ WKMovieWriterDelegate
     free(pInfo);
     return sout;
 }
+
+
 
 #pragma mark - setting
 
@@ -632,8 +613,6 @@ WKMovieWriterDelegate
             [self.session addInput:self.videoDeviceInput];
         }
         
-        
-        
         _videoConnection = [self.videoDataOutput connectionWithMediaType:AVMediaTypeVideo];
         
         if(_videoConnection.isVideoStabilizationSupported){
@@ -659,10 +638,12 @@ WKMovieWriterDelegate
 
 
 #pragma mark - AVCaptureVideoDataOutputSampleBufferDelegate、AVCaptureAudioDataOutputSampleBufferDelegate
+
+//拍摄输出
 - (void) captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
+    //视频流输出
     BOOL bVideo = YES;
-    
     @synchronized(self)
     {
         if (!self.isCapturing  || self.isPaused)
@@ -671,19 +652,20 @@ WKMovieWriterDelegate
         }
         if (connection != _videoConnection)
         {
+            //非视频流输出
             bVideo = NO;
         }
+        
         if ((_writer == nil) && !bVideo)
         {
+            //创建视频流处理类
             NSString* filename = [NSString stringWithFormat:@"capture11%d.mp4", _currentFile];
             NSString* path = [NSTemporaryDirectory() stringByAppendingPathComponent:filename];
             _recordURL = [NSURL fileURLWithPath:path];
             _writer  = [[WKMovieWriter alloc] initWithURL:_recordURL cropSize:_cropSize];
-            
-            
             _writer.delegate = self;
-            
         }
+        
         if (_discont)
         {
             if (bVideo)
@@ -743,16 +725,6 @@ WKMovieWriterDelegate
                     [self.frames addObject:frame];
                 }
             }
-            //                _lastFrame = [WKVideoConverter convertSampleBufferRefToUIImage:sampleBuffer];
-            
-            
-            
-            //            _lastFrame = [[UIImage alloc] init];
-            
-            //            CGImageRef cgImage = [WKVideoConverter convertSamepleBufferRefToCGImage:sampleBuffer];
-            //            [self.frames addObject:((__bridge id)(cgImage))];
-            //            CGImageRelease(cgImage);
-            //            _lastFrame = [[UIImage alloc] init];
             [_writer appendVideoBuffer:sampleBuffer];
         }
         else
@@ -768,6 +740,7 @@ WKMovieWriterDelegate
 
 
 #pragma mark - WKMovieWriterDelegate
+
 - (void)movieWriterDidFinishRecording:(WKMovieWriter *)recorder status:(BOOL)isCancle
 {
     self.isCapturing = NO;
@@ -779,7 +752,6 @@ WKMovieWriterDelegate
     ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
     [library writeVideoAtPathToSavedPhotosAlbum:recorder.recordingURL completionBlock:^(NSURL *assetURL, NSError *error){
         NSLog(@"save completed");
-        //        [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
     }];
 #endif
     
@@ -800,6 +772,7 @@ WKMovieWriterDelegate
 
 
 #pragma mark KVO and Notifications
+
 - (void)addObservers
 {
     //    [self.session addObserver:self forKeyPath:@"running" options:NSKeyValueObservingOptionNew context:SessionRunningContext];
@@ -815,13 +788,12 @@ WKMovieWriterDelegate
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(sessionInterruptionEnded:) name:AVCaptureSessionInterruptionEndedNotification object:self.session];
 }
 
+
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
     if ( context == SessionRunningContext ) {
-        //        BOOL isSessionRunning = [change[NSKeyValueChangeNewKey] boolValue];
-        
         dispatch_async( dispatch_get_main_queue(), ^{
-            //            NSLog(@"%s", __FUNCTION__);
         } );
     }else if (context == FocusAreaChangedContext){
         
@@ -829,7 +801,6 @@ WKMovieWriterDelegate
             
             if (self.focusAreaDidChangedBlock) {
                 dispatch_async( dispatch_get_main_queue(), ^{
-                    //                    NSLog(@"%s", __FUNCTION__);
                     self.focusAreaDidChangedBlock();
                 } );
             }
@@ -842,12 +813,7 @@ WKMovieWriterDelegate
 }
 
 
-- (void)subjectAreaDidChange:(NSNotification *)notification
-{
-    CGPoint devicePoint = CGPointMake( 0.5, 0.5 );
-    //    [self focusWithMode:AVCaptureFocusModeContinuousAutoFocus exposeWithMode:AVCaptureExposureModeContinuousAutoExposure atDevicePoint:devicePoint monitorSubjectAreaChange:NO];
-    //    NSLog(@"%s", __FUNCTION__);
-}
+- (void)subjectAreaDidChange:(NSNotification *)notification{}
 
 - (void)sessionRuntimeError:(NSNotification *)notification
 {
@@ -904,6 +870,7 @@ WKMovieWriterDelegate
     }
 }
 
+
 - (void)sessionInterruptionEnded:(NSNotification *)notification
 {
     NSLog( @"Capture session interruption ended" );
@@ -920,19 +887,12 @@ WKMovieWriterDelegate
 {
     if ( [self.session canAddInput:input] ) {
         
-        
-        
         [device lockForConfiguration:nil];
         device.subjectAreaChangeMonitoringEnabled = YES;
         [device addObserver:self forKeyPath:@"adjustingFocus" options:NSKeyValueObservingOptionNew context:FocusAreaChangedContext];
         [device unlockForConfiguration];
         
-        
-        
-        //        [[NSNotificationCenter defaultCenter] removeObserver:self name:AVCaptureDeviceSubjectAreaDidChangeNotification object:device];
-        
         [[self class] setFlashMode:AVCaptureFlashModeAuto forDevice:device];
-        //        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(subjectAreaDidChange:) name:AVCaptureDeviceSubjectAreaDidChangeNotification object:device];
         
         if ([self.session canAddInput:input]) {
             
@@ -968,23 +928,16 @@ WKMovieWriterDelegate
             _videoConnection.videoOrientation = initialVideoOrientation;
         }
         
-        //        videoOutput.videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
-        //                                     [NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange], kCVPixelBufferPixelFormatTypeKey,
-        //                                     nil];
     }
 }
-/**
- *  获取设备
- *
- *  @param mediaType 媒体类型
- *  @param position  捕获设备位置
- *
- *  @return 设备
- */
+
+
+
 + (AVCaptureDevice *)deviceWithMediaType:(NSString *)mediaType preferringPosition:(AVCaptureDevicePosition)position
 {
+    //返回前后 两个摄像头 设备
     NSArray *devices = [AVCaptureDevice devicesWithMediaType:mediaType];
-    AVCaptureDevice *captureDevice = devices.firstObject;
+    AVCaptureDevice *captureDevice = devices.firstObject; //默认选中 后置摄像
     
     for ( AVCaptureDevice *device in devices ) {
         if ( device.position == position ) {
@@ -1011,11 +964,6 @@ WKMovieWriterDelegate
 }
 
 
-//- (NSTimeInterval)duration
-//{
-//    return _duration;
-//}
-
 - (NSMutableArray *)frames
 {
     if (!_frames) {
@@ -1029,6 +977,26 @@ WKMovieWriterDelegate
     return _isCapturing;
 }
 
-
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:self.session];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVCaptureSessionWasInterruptedNotification object:self.session];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVCaptureSessionInterruptionEndedNotification object:self.session];
+    if (_captureDevice.position == AVCaptureDevicePositionBack) {
+        
+        [_captureDevice removeObserver:self forKeyPath:@"adjustingFocus"];
+    }
+    
+    [_session beginConfiguration];
+    [self.session removeInput:self.videoDeviceInput];
+    [_session commitConfiguration];
+    
+    if ([_session isRunning]){
+        [_session stopRunning];
+        _session = nil;
+    }
+    
+    NSLog(@"%s", __FUNCTION__);
+}
 
 @end

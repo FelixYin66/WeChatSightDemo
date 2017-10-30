@@ -222,18 +222,8 @@
     [self.videoInput markAsFinished];
     
     [self.videoWriter finishWritingWithCompletionHandler:^{
-        
         NSLog(@"写完了");
-        //        NSURL *destinationURL = [NSURL fileURLWithPath:[self appendDocumentDir:@"test.mp4"]];
-        //        NSError *error;
-        //        [[NSFileManager defaultManager] copyItemAtURL:self.recordingURL toURL:destinationURL error:&error];
-        //
-        //        if (error) {
-        //            NSLog(@"%@", [error debugDescription]);
-        //        }
-        
         dispatch_async(dispatch_get_main_queue(), ^{
-            
             if([self.delegate respondsToSelector:@selector(movieWriterDidFinishRecording:status:)]){
                 [self.delegate movieWriterDidFinishRecording:self status:isCancle];
             }
@@ -283,6 +273,6 @@
 
 - (void)dealloc
 {
-    NSLog(@"%s", __FUNCTION__);
+    NSLog(@"writer   ==== %s", __FUNCTION__);
 }
 @end

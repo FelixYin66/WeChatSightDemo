@@ -71,7 +71,7 @@ typedef void(^AuthorizationResult)(BOOL success);
 
 - (instancetype)initWithMaxDuration:(NSTimeInterval)duration;
 
-@property (nonatomic, assign) CGSize cropSize;
+@property (nonatomic, assign) CGSize cropSize; //录制视频 宽高
 
 @property (nonatomic, strong, readonly) AVCaptureConnection *videoConnection;
 @property (nonatomic, strong, readonly) AVCaptureConnection *audioConnection;
